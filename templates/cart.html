@@ -1,0 +1,325 @@
+{% extends 'base_no_cart.html' %}
+{% load staticfiles %}
+
+{% block title %}天天生鲜-购物车{% endblock title %}
+
+{% block page_titile %}购物车{% endblock page_titile %}
+
+{% block body %}
+	<div class="total_count">全部商品<em>{{ total_count }}</em>件</div>
+	<ul class="cart_list_th clearfix">
+		<li class="col01">商品名称</li>
+		<li class="col02">商品单位</li>
+		<li class="col03">商品价格</li>
+		<li class="col04">数量</li>
+		<li class="col05">小计</li>
+		<li class="col06">操作</li>
+	</ul>
+
+    <form method="post" action="{% url 'order:place' %}">
+    {% for sku in skus %}
+	<ul class="cart_list_td clearfix">
+        {# 提交表单form时，会提交 被选中的checkbox的 value值，没有 被选中的checkbox 其value值 不会被提交 #}
+		<li class="col01"><input type="checkbox" name="sku_ids" value="{{ sku.id }}" checked></li>
+		<li class="col02"><img src="{{ sku.image.url }}"></li>
+		<li class="col03">{{ sku.name }}<br><em>{{ sku.price }}元/{{ sku.unite }}</em></li>
+		<li class="col04">{{ sku.unite }}</li>
+		<li class="col05">{{ sku.price }}元</li>
+		<li class="col06">
+			<div class="num_add">
+				<a href="javascript:;" class="add fl">+</a>
+				<input type="text" sku_id="{{ sku.id }}" class="num_show fl" value="{{ sku.count }}">
+				<a href="javascript:;" class="minus fl">-</a>	
+			</div>
+		</li>
+		<li class="col07">{{ sku.amount }}元</li>
+		<li class="col08"><a href="javascript:;">删除</a></li>
+	</ul>
+	{% endfor %}
+
+	<ul class="settlements">
+        {% csrf_token %}
+		<li class="col01"><input type="checkbox" name="" checked=""></li>
+		<li class="col02">全选</li>
+		<li class="col03">合计(不含运费)：<span>¥</span><em>{{ total_price }}</em><br>共计<b>{{ total_count }}</b>件商品</li>
+		<li class="col04"><input type="submit" value="去结算"></li>
+	</ul>
+    </form>>
+
+{% endblock body %}
+
+{% block bottomfiles %}
+    <script src="{% static 'js/jquery-1.12.4.min.js' %}"></script>
+    <script>
+    // 计算被选中商品的 总件数 和 总价格
+    function update_page_info() {
+        total_count = 0
+        total_price = 0
+        // 获取 所有被选中商品的checkbox：$('.cart_list_td').find(':checked')
+        // 获取 所有被选中商品 所在的ul元素：$('.cart_list_td').find(':checked').parents('ul')
+        $('.cart_list_td').find(':checked').parents('ul').each(function () {
+            // $(this) 对应 一个被选中商品的ul元素
+            // 获取 商品的数目 和 小计
+            count = $(this).find('.num_show').val()
+            amount = $(this).children('.col07').text()
+            // 累加计算 商品的总件数和总价格
+            count = parseInt(count)
+            amount = parseFloat(amount)
+            total_count = total_count + count
+            total_price = total_price + amount
+        })
+        // 设置被选中商品的 总件数和总价格
+        $('.settlements').find('em').text(total_price.toFixed(2))
+        $('.settlements').find('b').text(total_count)
+    }
+
+    // 计算商品的小计
+    function update_goods_amount(sku_ul) {
+        // 获取 商品的价格和数量
+        count = sku_ul.find('.num_show').val()
+        price = sku_ul.children('.col05').text()
+        // 计算商品的小计
+        amount = parseInt(count) * parseFloat(price)
+        // 设置商品的小计
+        sku_ul.children('.col07').text(amount.toFixed(2)+'元')
+    }
+
+    // 商品的全选和全不选
+    $('.settlements').find(':checkbox').change(function () {
+        // 获取 全选checkbox的 选中与否的状态，$(this)表示checkbox
+        is_checked = $(this).prop('checked')
+        // 遍历 商品的checkbox，设置这些商品的checkbox的状态。使其 与 全选的checkbox的状态 保持一致。
+        $('.cart_list_td').find(':checkbox').each(function () {
+            $(this).prop('checked', is_checked)
+        })
+        //更新页面被选中商品的 总件数和总价格
+        update_page_info()
+    })
+
+    // 商品对应的checkbox状态 发生改变时，更改 全选checkbox的状态
+    $('.cart_list_td').find(':checkbox').change(function () {
+        // 获取 页面上所有商品 的条目数
+        all_len = $('.cart_list_td').length
+        // 获取 页面上被选中商品 的条目数
+        checked_len = $('.cart_list_td').find(':checked').length
+        if (checked_len < all_len) {
+            $('.settlements').find(':checkbox').prop('checked', false)
+        }
+        else {
+            $('.settlements').find(':checkbox').prop('checked', true)
+        }
+        // 更新页面被选中商品的 总价格和总件数
+        update_page_info()
+    })
+
+    // 这两个变量 在ajax请求之后 会被重新赋值
+    error_update = false
+    total = 0
+    // 更新购物车中商品的数量
+    function update_remote_cart_info(sku_id, count) {
+        // 组织参数
+        csrf = $('input[name="csrfmiddlewaretoken"]').val()
+        params = {'sku_id': sku_id, 'count': count, 'csrfmiddlewaretoken': csrf}
+        // 发起ajax post请求，访问/cart/update, 传递参数：sku_id count
+        // 发起的ajax请求 默认情况下 都是异步的，不会等待 回调函数执行完成。
+        // 设置ajax请求 为 同步，该设置 是 作用于全局的
+        $.ajaxSettings.async = false
+        $.post('/cart/update', params, function (data) {
+            if (data.res == 5) {
+                // 更新成功
+                error_update = false
+                total = data.total_count
+            }
+            else {
+                // 更新失败
+                error_update = true
+                alert(data.errmsg)
+            }
+        })
+        // 等待上面的ajax请求完成后，重新设置ajax请求 为 异步
+        $.ajaxSettings.async = true
+
+    }
+
+    // 购物车商品数量的增加
+    $('.add').click(function () {
+
+        // 获取 商品的id 和 商品的数量,
+        // $(this)表示'+'所在标签，$(this).next()表示$(this)所在标签的 下一个标签(num_show)
+        // 在"num_show" 中 增加属性 sku_id="{{ sku.id }}", 获取自定义属性 使用attr
+        sku_id = $(this).next().attr('sku_id')
+        count = $(this).next().val()
+
+        count = parseInt(count) + 1
+
+        // 更新购物车中的记录
+        update_remote_cart_info(sku_id, count)
+
+        // 判断更新是否成功
+        if (error_update == false) {
+            // 重新设置 商品的数目
+            $(this).next().val(count)
+            // 计算商品的小计
+            update_goods_amount($(this).parents('ul'))
+            // 获取 商品对应checkbox的状态. 如果checkbox被选中，更新页面商品 的总价格和总数目
+            is_checked = $(this).parents('ul').find(':checkbox').prop('checked')
+            if (is_checked) {
+                // 更新页面商品 的总价格 总数目
+                update_page_info()
+            }
+            // 更新页面左上角 购物车商品的总件数
+            $('.total_count').children('em').text(total)
+        }
+
+    })
+
+    // 购物车商品数量的减少
+    $('.minus').click(function () {
+
+        // 获取 商品的id 和 商品的数量,
+        // $(this)表示'+'所在标签，$(this).next()表示$(this)所在标签的 下一个标签(num_show)
+        // 在"num_show" 中 增加属性 sku_id="{{ sku.id }}", 获取自定义属性 使用attr
+        sku_id = $(this).prev().attr('sku_id')
+        count = $(this).prev().val()
+        // 校验参数
+        count = parseInt(count) - 1
+        if (count <= 0) {
+            // 直接return 相当于 没有进行之前的操作
+            return
+        }
+
+        // 更新购物车中的记录
+        update_remote_cart_info(sku_id, count)
+
+        // 判断更新是否成功
+        if (error_update == false) {
+            // 重新设置 商品的数目
+            $(this).prev().val(count)
+            // 计算商品的小计
+            update_goods_amount($(this).parents('ul'))
+            // 获取 商品对应checkbox的状态. 如果checkbox被选中，更新页面商品 的总价格和总数目
+            is_checked = $(this).parents('ul').find(':checkbox').prop('checked')
+            if (is_checked) {
+                // 更新页面商品 的总价格 总数目
+                update_page_info()
+            }
+            // 更新页面左上角 购物车商品的总件数
+            $('.total_count').children('em').text(total)
+        }
+    })
+
+
+    // 记录 用户未输入之前 商品的数量
+    pre_count = 0
+    $('.num_show').focus(function () {
+        pre_count = $(this).val()
+    })
+
+    // 手动输入 购物车中商品 的数量
+    $('.num_show').blur(function () {
+
+        // 获取 商品的id 和 商品的数量,
+        // $(this)表示'+'所在标签，$(this).next()表示$(this)所在标签的 下一个标签(num_show)
+        // 在"num_show" 中 增加属性 sku_id="{{ sku.id }}", 获取自定义属性 使用attr
+        sku_id = $(this).attr('sku_id')
+        count = $(this).val()
+        // 校验参数
+        if (isNaN(count) || count.trim().length == 0 || parseInt(count) <= 0) {
+            // 重新设置商品的数目 为 用户之前输入的商品数目, 不用更新 直接返回
+            $(this).val(pre_count)
+            return
+        }
+
+        // 更新购物车中的记录
+        count = parseInt(count)
+        update_remote_cart_info(sku_id, count)
+
+        // 判断更新是否成功
+        if (error_update == false) {
+            // 重新设置 商品的数目
+            $(this).val(count)
+            // 计算商品的小计
+            update_goods_amount($(this).parents('ul'))
+            // 获取 商品对应checkbox的状态. 如果checkbox被选中，更新页面商品 的总价格和总数目
+            is_checked = $(this).parents('ul').find(':checkbox').prop('checked')
+            if (is_checked) {
+                // 更新页面商品 的总价格 总数目
+                update_page_info()
+            }
+            // 更新页面左上角 购物车商品的总件数
+            $('.total_count').children('em').text(total)
+        }
+        else {
+            // 重新设置商品的数目 为 用户之前输入的商品数目
+            $(this).val(pre_count)
+        }
+    })
+
+    // 删除 购物车中某个条目的 商品记录
+    $('.cart_list_td').children('.col08').children('a').click(function () {
+        // 获取 对应商品的id
+        sku_id = $(this).parents('ul').find('.num_show').attr('sku_id')
+        csrf = $('input[name="csrfmiddlewaretoken"]').val()
+        // 组织参数
+        params = {'sku_id': sku_id, 'csrfmiddlewaretoken': csrf}
+
+        // 获取 商品所在的ul元素
+        sku_ul = $(this).parents('ul')
+
+        // 发起ajax post请求，访问/cart/delete, 传递参数：sku_id
+        $.post('/cart/delete', params, function (data) {
+            if (data.res == 3) {
+                // 删除成功，移除 商品所在的ul元素
+                // 在ajax请求的 回调函数中，$(this)不再表示 '删除'所在的<a>标签
+                // remove(): 移除 自身 以及子元素。
+                // empty(): 只移除 子元素，不移除 自身
+                sku_ul.remove()
+                // 获取 商品的选中与否的状态(该商品 在sku_ul中)
+                is_checked = sku_ul.find(':checkbox').prop('checked')
+                if (is_checked) {
+                    update_page_info()
+                }
+                // 重新设置 购物车中 商品的总件数(页面左上角的 总件数)
+                $('.total_count').children('em').text(data.total_count)
+            }
+            else {
+                alert(data.errmsg)
+            }
+        })
+    })
+
+    </script>
+{% endblock bottomfiles %}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

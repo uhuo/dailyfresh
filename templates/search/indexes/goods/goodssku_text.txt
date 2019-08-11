@@ -1,0 +1,9 @@
+# object代表 GoodsSKU模型名
+# 根据表中的哪些字段 建立 索引数据
+# name, desc, goods, detail为字段名
+
+{{ object.name }}   # 根据商品的名称 建立索引
+{{ object.desc }}   #          简介 建立索引
+{{ object.goods.detail }}   # 根据商品的详情 建立索引  （详情在spu表中）
+
+
