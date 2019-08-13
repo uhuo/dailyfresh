@@ -45,4 +45,4 @@ django简易购物网站小项目-201908111636upload
 	•	 nginx （负载均衡  提供静态文件）
 	
 	
-![](https://upload-images.jianshu.io/upload_images/6174636-2e83a3f1593c1cc5.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
+![架构详情](https://upload-images.jianshu.io/upload_images/6174636-2e83a3f1593c1cc5.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
