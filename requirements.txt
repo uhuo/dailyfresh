@@ -1,6 +1,6 @@
 amqp==2.5.0
 billiard==3.6.0.0
-celery==4.3.0
+celery==5.2.2
 configparser==3.7.4
 Django==2.2.3
 django-haystack==2.8.1
